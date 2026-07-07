@@ -1,44 +1,54 @@
 <html><body style="background:#1a1a2e;color:#fff;font-family:monospace;padding:20px">
-<h2>postMessage Bridge Test</h2>
+<h2>Bridge Detail</h2>
 <pre id="d" style="color:#0f0"></pre>
 <script>
 var d=document.getElementById('d');
 function log(m){d.textContent+=m+'\n';}
 
-log('Bridges found:');
-log('  _solana_: ' + (typeof _solana_));
-log('  okxInternalJSBridge: ' + (typeof okxInternalJSBridge));
-
-// 尝试通过 postMessage 导出私钥
-var bridges = [
-  {name:'_solana_', obj:_solana_},
-  {name:'okxInternalJSBridge', obj:okxInternalJSBridge}
-];
-
-bridges.forEach(function(b){
-  if(!b.obj) return;
-  log('\n--- ' + b.name + ' ---');
+function dumpBridge(name, obj) {
+  log('=== ' + name + ' ===');
+  if(!obj) { log('  undefined'); return; }
   
-  // 尝试 postMessage 调用 exportPrivateKey
-  var msg = JSON.stringify({
-    method: 'exportPrivateKey',
-    params: [''],
-    id: 1
+  // 所有属性 (包括非函数)
+  var props = Object.getOwnPropertyNames(obj);
+  log('  Properties (' + props.length + '):');
+  props.forEach(function(p) {
+    try {
+      var val = obj[p];
+      var t = typeof val;
+      var s = '  ' + p + ': ' + t;
+      if(t === 'string') s += ' = "' + val.substring(0,80) + '"';
+      else if(t === 'number') s += ' = ' + val;
+      else if(t === 'function') s += ' (args: ' + val.length + ')';
+      else if(t === 'object' && val) {
+        try { s += ' keys: ' + Object.keys(val).join(','); } catch(e){}
+      }
+      log(s);
+    } catch(e) {
+      log('  ' + p + ': [error: ' + e.message + ']');
+    }
   });
   
+  // 原型链
+  log('  Proto:');
   try {
-    b.obj.postMessage(msg);
-    log('  postMessage sent: exportPrivateKey');
-  } catch(e) {
-    log('  postMessage error: ' + e.message);
-  }
-  
-  // 也试 onMessage 监听
-  try {
-    b.obj.onmessage = function(e){
-      log('  onMessage received: ' + JSON.stringify(e.data));
-    };
+    var proto = Object.getPrototypeOf(obj);
+    if(proto) {
+      var protoProps = Object.getOwnPropertyNames(proto);
+      protoProps.forEach(function(p) {
+        if(p !== 'constructor') {
+          try {
+            var v = proto[p];
+            log('    proto.' + p + ': ' + typeof v);
+          } catch(e) {}
+        }
+      });
+    }
   } catch(e) {}
-});
-</script>
-</body></html>
+}
+
+dumpBridge('_solana_', window._solana_);
+dumpBridge('okxInternalJSBridge', window.okxInternalJSBridge);
+dumpBridge('okxBtcJSBridge', window.okxBtcJSBridge);
+dumpBridge('_aptos_', window._aptos_);
+</script></body></html>
